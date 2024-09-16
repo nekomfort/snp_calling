@@ -13,9 +13,8 @@ fastqc -o qc --noextract data/OST001_R1_001.fastq.gz
 fastqc -o qc --noextract data/OST001_R2_001.fastq.gz
 ```
 ## Анализ чтений 
-[Полный отчет OST001_R1_001.fastq.gz](http://localhost:8888/doc/tree/qc/OST001_R1_001_fastqc.html)
+[Полные отчеты](https://drive.google.com/drive/folders/1tilYaXeUwdwjjifDh6jp4n9t8-JXbgMu?usp=sharing)
 
-[Полный отчет OST001_R2_001.fastq.gz](http://localhost:8888/doc/tree/qc/OST001_R2_001_fastqc.html)
 
 
 Результаты FastQC парно-концевых чтений представлены ниже. Основными параметрами являются "Per base sequence quality" и в данном случае "Adapter Content", так как присутствуют неудаленные адаптеры. Качество прочтения последних нуклеотидов, особенно для файла OST001_R2_001.fastq.gz, снижено, по сравнению с качеством прочтения рида в целом, а также обнаруживается неудаленный универсальный адаптер Illumina, поэтому потребуется обрезка и фильтрация чтений с помощью Trimmomatic.
@@ -36,13 +35,67 @@ java -jar trimmomatic-0.39.jar PE  OST001_R1_001.fastq.gz OST001_R2_001.fastq.gz
 ## Далее еще один прогон через FastQC, чтобы убедиться, что обрезка прошла как надо
 Понадобятся только файлы с парными чтениями. В целом все в порядке, синяя линяя показывает среднее качество прочтения каждого нуклеотида в риде, в обоих файлах среднее качество в зеленом диапазоне. Длины ридов в диапазоне 144-152 bp.
 
-[Полный отчет output_R1_paired.fq.gz](http://localhost:8888/doc/tree/Trimmomatic-0.39/fastqc_trimmed/output_R1_paired_fastqc.html)
-
-[Полный отчет output_R2_paired.fq.gz](http://localhost:8888/doc/tree/Trimmomatic-0.39/fastqc_trimmed/output_R2_paired_fastqc.html)
+[Полные отчеты](https://drive.google.com/drive/folders/1tilYaXeUwdwjjifDh6jp4n9t8-JXbgMu?usp=sharing)
 ```
 mkdir fastqc_trimmed
 fastqc -o fastqc_trimmed output_R1_paired.fq.gz output_R2_paired.fq.gz
 ```
 <img width="1434" alt="Снимок экрана 2024-09-16 в 21 47 28" src="https://github.com/user-attachments/assets/505ce4ef-666f-4cba-ad5e-d8c088e8416f">
 <img width="1431" alt="Снимок экрана 2024-09-16 в 21 47 48" src="https://github.com/user-attachments/assets/cdf4fa66-87dd-46b4-b360-56b1b7b8454e">
+
+# Этап №2 Выравнивание на референс Homo_sapiens.GRCh38.dna_sm.primary_assembly.fa, сортировка и фильтрация
+## BWA-MEM
+Маппинг занял около 6 часов вместе с индексацией референсного генома. 
+1. BWA-backtrack -- для ридов Illumina до 100 bp
+2. BWA-SW -- для ридов Illumina от 70 bp до 1 Mbp
+3. BWA-MEM -- для ридов Illumina от 70 bp до 1 Mbp, но быстрее и точнее, последняя версия. Беру это
+```
+conda activate bwa_env
+bwa index -p refseq Homo_sapiens.GRCh38.dna_sm.primary_assembly.fa
+bwa mem refseq Trimmomatic-0.39/output_R1_paired.fq.gz Trimmomatic-0.39/output_R2_paired.fq.gz > align_data2.sam
+```
+Получили файл align_data2.sam, который нужно сортировать, отметить дубликаты и перевести в формат .bam, чтобы он занимал меньше места
+## Picard -- сортировка по координате и маркировка дубликатов  
+```
+java -jar picard.jar SortSam -I align_data2.sam -O align_data2_sorted.sam -SORT_ORDER coordinate -VALIDATION_STRINGENCY SILENT
+java -jar picard.jar MarkDuplicates -I align_data2_sorted.sam -O sort_dedup2.bam -METRICS_FILE metrics.txt -ASSUME_SORTED true -VALIDATION_STRINGENCY SILENT
+```
+## Samtools -- индексрованный файл и краткая оценка происходящего
+По краткой оценке происходящего с помощью samtools flagstat видим, что замапилось 99,89% всех ридов. Это очень хороший результат.
+```
+conda activate samtools_env
+samtools index pi/sort_dedup2.bam
+samtools flagstat pi/sort_dedup2.bam
+```
+> 5765206 + 0 in total (QC-passed reads + QC-failed reads)
+
+> 5753102 + 0 primary
+
+> 0 + 0 secondary
+
+> 12104 + 0 supplementary
+
+> 272028 + 0 duplicates
+
+> 272028 + 0 primary duplicates
+
+> 5758669 + 0 mapped (99.89% : N/A)
+
+> 5746565 + 0 primary mapped (99.89% : N/A)
+
+> 5753102 + 0 paired in sequencing
+
+> 2876551 + 0 read1
+
+> 2876551 + 0 read2
+
+> 5715368 + 0 properly paired (99.34% : N/A)
+
+> 5741488 + 0 with itself and mate mapped
+
+> 5077 + 0 singletons (0.09% : N/A)
+
+> 22598 + 0 with mate mapped to a different chr
+
+> 16201 + 0 with mate mapped to a different chr (mapQ>=5)
 
