@@ -14,6 +14,7 @@ fastqc -o qc --noextract data/OST001_R2_001.fastq.gz
 ```
 ## Анализ чтений 
 [Полный отчет OST001_R1_001.fastq.gz](http://localhost:8888/doc/tree/qc/OST001_R1_001_fastqc.html)
+
 [Полный отчет OST001_R2_001.fastq.gz](http://localhost:8888/doc/tree/qc/OST001_R2_001_fastqc.html)
 
 
@@ -34,7 +35,9 @@ java -jar trimmomatic-0.39.jar PE  OST001_R1_001.fastq.gz OST001_R2_001.fastq.gz
 ```
 ## Далее еще один прогон через FastQC, чтобы убедиться, что обрезка прошла как надо
 Понадобятся только файлы с парными чтениями. В целом все в порядке, синяя линяя показывает среднее качество прочтения каждого нуклеотида в риде, в обоих файлах среднее качество в зеленом диапазоне. Длины ридов в диапазоне 144-152 bp.
+
 [Полный отчет output_R1_paired.fq.gz](http://localhost:8888/doc/tree/Trimmomatic-0.39/fastqc_trimmed/output_R1_paired_fastqc.html)
+
 [Полный отчет output_R2_paired.fq.gz](http://localhost:8888/doc/tree/Trimmomatic-0.39/fastqc_trimmed/output_R2_paired_fastqc.html)
 ```
 mkdir fastqc_trimmed
