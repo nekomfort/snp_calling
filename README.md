@@ -3,7 +3,7 @@
 [Homo_sapiens.GRCh38.dna_sm.primary_assembly.fa](https://ftp.ensembl.org/pub/release-112/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna_sm.primary_assembly.fa.gz)
 Основной задачей стоит ознакомление с необходимым софтом и проведение анализа индивидуальных мутаций. Работа выполнялась в JupyterLab, этапы установки софта на локальную машину намеренно пропущены, чаще всего создавалась отдельная для инструментов среда. 
 
-# Шаг №1 "Проверка качества чтений и тримминг по необходимости"
+# Этап №1 Проверка качества чтений и тримминг по необходимости
 ## Используемые инструменты: FastQC, Trimmomatic 
 
 После скачивания ридов прогнала их через FastQC, чтобы проверить их качество 
@@ -62,6 +62,7 @@ java -jar picard.jar MarkDuplicates -I align_data2_sorted.sam -O sort_dedup2.bam
 ```
 ## Samtools -- индексрованный файл и краткая оценка происходящего
 По краткой оценке происходящего с помощью samtools flagstat видим, что замапилось 99,89% всех ридов. Это очень хороший результат.
+[Ссылка на получившиеся на этом этапе файлы](https://drive.google.com/drive/folders/1MFdm2My4Ok3qkmlMiu3KJGlrc8TYTP_O?usp=share_link)
 ```
 conda activate samtools_env
 samtools index pi/sort_dedup2.bam
@@ -99,3 +100,40 @@ samtools flagstat pi/sort_dedup2.bam
 
 > 16201 + 0 with mate mapped to a different chr (mapQ>=5)
 
+## GATK и неудавшаяся Base quality recalibration
+Наверняка, GATK должен использоваться в коллинге для Base quality recalibration и возмжного использования HaplotypeCaller для самого собственно коллинга, но мой компьютер, по неизвестным мне причинам, не потянул этот пакет в принципе. При попытке провести рекалибровку сначала очень долго выдавал различного рода ошибки, но после их исправления просто перестал запускаться, поэтому этот шаг пришлось пропустить, несмотря на его важность. 
+
+## Этап №3 Выбор необходимых участков согласно .bed файлу с помощью bedtools 
+[Получившийся файл](https://drive.google.com/drive/folders/1HyvUINYgzPUVMziIf_6-MqRYsm0JqBU8?usp=share_link)
+
+Получился .bam файл с выравниванием только на тех участках, что указаны в .bed файле. Также пришлось поменять тип названия хромосом, чтобы bedtools работал корректно
+```
+cd bedtools2
+sed 's/^chr//g' bedtools2/DOOM_rs_g.slop25.bed > bedtools2/output.bed
+bedtools intersect -abam sort_dedup2.bam -b output.bed > bed_align.bam
+```
+## Этап №4 Коллинг мутаций, фильтрация по качеству и краткая оценка происходящего 
+[Папка со всем](https://drive.google.com/drive/folders/1hSrZkMilSePKT0N2BBPdfFggUuBpKcEs?usp=share_link)
+
+Параметры фильтрации выставлены основываясь на calls_stat.txt
+```
+bcftools mpileup -Ou -f Homo_sapiens.GRCh38.dna_sm.primary_assembly.fa bed_align.bam
+bcftools call --ploidy GRCh38 -mv -Oz -o alignment_second/calls2.vcf.gz
+bcftools stats alignment_second/calls2.vcf.gz > alignment_second/calls_stat.txt
+bcftools filter -Oz -o alignment_second/calls2_filtered.vcf.gz -i 'QUAL>70 && DP>100' alignment_second/calls2.vcf.gz
+bcftools stats alignment_second/calls2_filtered.vcf.gz > alignment_second/calls_filtered_stat.txt
+```
+Проверим сколько нашлось мутаций в целом 
+```
+bcftools view alignment_second/calls2_filtered.vcf.gz | grep -v "#"| wc -l
+```
+> 3619
+Найдено 3619 мутаций, которые в дальнейшем будут аннотированы. Перед сортировкой их было более 21 000
+
+## Этап №5 Аннотация вариантов. Vep
+[Некотрые файлы, получившиеся после аннотации](https://drive.google.com/drive/folders/1qtmVg3CSb8l5PTkVTPPrrf7en4YJuG7_?usp=share_link)
+
+Я использовала браузерную версию. В общем это выглядит как-то так, большинство мутаций попадают на участки интронов, только 2 на регуляторные участки. Также некоторые снипы аннотируются как варианты транскриптов малых некодирующих РНК. К некотрым мутациям есть ссылки на исследования, некотрые задействованы в исследованиях не были. 
+<img width="1432" alt="Снимок экрана 2024-09-16 в 23 28 31" src="https://github.com/user-attachments/assets/c3561654-1e00-4107-a589-5fc77705ad9d">
+
+Продолжение следует
