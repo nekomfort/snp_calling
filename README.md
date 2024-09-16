@@ -8,8 +8,6 @@
 
 После скачивания ридов прогнала их через FastQC, чтобы проверить их качество 
 
-'''
-mkdir qc 
+'mkdir qc
 fastqc -o qc --noextract data/OST001_R1_001.fastq.gz
-fastqc -o qc --noextract data/OST001_R2_001.fastq.gz
-'''
+fastqc -o qc --noextract data/OST001_R2_001.fastq.gz'
